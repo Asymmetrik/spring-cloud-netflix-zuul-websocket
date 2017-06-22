@@ -50,6 +50,7 @@ public class ProxyWebSocketHandler extends WebSocketHandlerDecorator {
 	private final ZuulWebSocketProperties zuulWebSocketProperties;
 	private final WebSocketStompClient stompClient;
 	private final Map<WebSocketSession, ProxyWebSocketConnectionManager> managers = new ConcurrentHashMap<>();
+	private final Map<String, ProxyWebSocketConnectionManager> uriConnection = new ConcurrentHashMap<>();
 	private ErrorHandler errorHandler;
 
 	public ProxyWebSocketHandler(WebSocketHandler delegate,
@@ -171,13 +172,14 @@ public class ProxyWebSocketHandler extends WebSocketHandlerDecorator {
 		String routeHost = zuulPropertiesResolver.getRouteHost(wsBrokerage);
 		Assert.notNull(routeHost, "routeHost");
 
-		String uri = ServletUriComponentsBuilder.fromHttpUrl(routeHost).path(path)
-				.toUriString();
-		ProxyWebSocketConnectionManager connectionManager = new ProxyWebSocketConnectionManager(
-				messagingTemplate, stompClient, session, headersCallback, uri);
-		connectionManager.errorHandler(this.errorHandler);
-		managers.put(session, connectionManager);
-		connectionManager.start();
+		String uri = ServletUriComponentsBuilder.fromHttpUrl(routeHost).path(path).toUriString();
+		if(!uriConnection.containsKey(uri.toString())){
+			ProxyWebSocketConnectionManager connectionManager = new ProxyWebSocketConnectionManager(messagingTemplate, stompClient, uri);
+			connectionManager.errorHandler(this.errorHandler);
+			uriConnection.put(uri.toString(), connectionManager);
+			connectionManager.start();
+		}
+		managers.put(session, uriConnection.get(uri.toString()));
 	}
 
 	private void disconnectFromProxiedTarget(WebSocketSession session) {
@@ -187,7 +189,15 @@ public class ProxyWebSocketHandler extends WebSocketHandlerDecorator {
 	private void disconnectProxyManager(ProxyWebSocketConnectionManager proxyManager) {
 		if (proxyManager != null) {
 			try {
-				proxyManager.disconnect();
+				boolean hasSession = false;
+				for (Map.Entry<WebSocketSession, ProxyWebSocketConnectionManager> entry : managers.entrySet()){
+					if(entry.getValue() == proxyManager){
+						hasSession = true;
+					}
+				}
+				if(hasSession == false){
+					proxyManager.disconnect();
+				}
 			}
 			catch (Throwable ignored) {
 				// nothing

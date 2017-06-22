@@ -16,7 +16,10 @@
 
 package com.github.mthizo247.cloud.netflix.zuul.web.socket;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -26,6 +29,7 @@ import org.springframework.messaging.simp.stomp.StompHeaders;
 import org.springframework.messaging.simp.stomp.StompSession;
 import org.springframework.util.ErrorHandler;
 import org.springframework.util.concurrent.ListenableFuture;
+import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
 
@@ -50,13 +54,11 @@ public class ProxyWebSocketConnectionManagerTests {
 	@Before
 	public void init() throws Exception {
 		String uri = "http://example.com";
-		proxyConnectionManager = new ProxyWebSocketConnectionManager(messagingTemplate,
-				stompClient, wsSession, headersCallback, uri);
-
+		proxyConnectionManager = new ProxyWebSocketConnectionManager(messagingTemplate, stompClient, uri);
 		proxyConnectionManager.errorHandler(errHandler);
 
 		when(listenableFuture.get()).thenReturn(serverSession);
-		when(stompClient.connect(uri, headersCallback.getWebSocketHttpHeaders(wsSession),
+		when(stompClient.connect(uri, new WebSocketHttpHeaders(),
 				proxyConnectionManager)).thenReturn(listenableFuture);
 	}
 
@@ -80,7 +82,7 @@ public class ProxyWebSocketConnectionManagerTests {
 		proxyConnectionManager.handleException(serverSession, StompCommand.MESSAGE,
 				headers, payload, exception);
 
-		verify(errHandler).handleError(exception);
+		verify(errHandler).handleError(any(ProxySessionException.class));
 	}
 
 	@Test
@@ -88,6 +90,6 @@ public class ProxyWebSocketConnectionManagerTests {
 		Throwable exception = new Exception("E");
 		proxyConnectionManager.handleTransportError(serverSession, exception);
 
-		verify(errHandler).handleError(exception);
+		verify(errHandler).handleError(any(ProxySessionException.class));
 	}
 }

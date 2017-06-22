@@ -27,10 +27,6 @@ public class ReconnectErrorHandler implements ProxyWebSocketErrorHandler {
 	private boolean shouldAttemptToReconnect(ProxySessionException proxyException) {
 		if (!isConnectionLost(proxyException))
 			return false;
-
-		if (!proxyException.getConnectionManager().isConnectedToUserAgent())
-			return false;
-
 		return true;
 	}
 
