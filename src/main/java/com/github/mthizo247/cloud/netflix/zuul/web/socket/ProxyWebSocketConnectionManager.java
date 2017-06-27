@@ -17,7 +17,6 @@
 package com.github.mthizo247.cloud.netflix.zuul.web.socket;
 
 import java.lang.reflect.Type;
-import java.security.Principal;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -31,7 +30,6 @@ import org.springframework.messaging.simp.stomp.StompSession;
 import org.springframework.messaging.simp.stomp.StompSessionHandler;
 import org.springframework.util.ErrorHandler;
 import org.springframework.web.socket.WebSocketHttpHeaders;
-import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.client.ConnectionManagerSupport;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
 
@@ -45,31 +43,29 @@ import org.springframework.web.socket.messaging.WebSocketStompClient;
 public class ProxyWebSocketConnectionManager extends ConnectionManagerSupport
 		implements StompSessionHandler {
 	private final WebSocketStompClient stompClient;
-	private final WebSocketSession userAgentSession;
-	private final WebSocketHttpHeadersCallback httpHeadersCallback;
 	private StompSession serverSession;
 	private Map<String, StompSession.Subscription> subscriptions = new ConcurrentHashMap<>();
 	private ErrorHandler errorHandler;
 	private SimpMessagingTemplate messagingTemplate;
+	private String uri;
 
 	public ProxyWebSocketConnectionManager(SimpMessagingTemplate messagingTemplate,
-			WebSocketStompClient stompClient, WebSocketSession userAgentSession,
-			WebSocketHttpHeadersCallback httpHeadersCallback, String uri) {
+			WebSocketStompClient stompClient, String uri) {
 		super(uri);
 		this.messagingTemplate = messagingTemplate;
 		this.stompClient = stompClient;
-		this.userAgentSession = userAgentSession;
-		this.httpHeadersCallback = httpHeadersCallback;
+		this.uri = uri;
 	}
 
+	public String getUrl(){
+		return this.uri;
+	}
+	
 	public void errorHandler(ErrorHandler errorHandler) {
 		this.errorHandler = errorHandler;
 	}
 
 	private WebSocketHttpHeaders buildWebSocketHttpHeaders() {
-		if (httpHeadersCallback != null) {
-			return httpHeadersCallback.getWebSocketHttpHeaders(userAgentSession);
-		}
 		return new WebSocketHttpHeaders();
 	}
 
@@ -81,7 +77,10 @@ public class ProxyWebSocketConnectionManager extends ConnectionManagerSupport
 	public void connect() {
 		try {
 			serverSession = stompClient
-					.connect(getUri().toString(), buildWebSocketHttpHeaders(), this)
+					.connect(
+						getUri().toString(),
+						buildWebSocketHttpHeaders(),
+						this)
 					.get();
 		}
 		catch (Exception e) {
@@ -172,22 +171,8 @@ public class ProxyWebSocketConnectionManager extends ConnectionManagerSupport
 			if (logger.isDebugEnabled()) {
 				logger.debug("Received " + payload + ", To " + headers.getDestination());
 			}
-
-			Principal principal = userAgentSession.getPrincipal();
-			String userDestinationPrefix = messagingTemplate.getUserDestinationPrefix();
-			if (principal != null && destination.startsWith(userDestinationPrefix)) {
-				destination = destination.substring(userDestinationPrefix.length());
-
-				destination = destination.startsWith("/") ? destination
-						: "/" + destination;
-
-				messagingTemplate.convertAndSendToUser(principal.getName(), destination,
-						payload, copyHeaders(headers.toSingleValueMap()));
-			}
-			else {
-				messagingTemplate.convertAndSend(destination, payload,
-						copyHeaders(headers.toSingleValueMap()));
-			}
+			messagingTemplate.convertAndSend(destination, payload,
+					copyHeaders(headers.toSingleValueMap()));
 		}
 	}
 
@@ -208,9 +193,10 @@ public class ProxyWebSocketConnectionManager extends ConnectionManagerSupport
 
 	public void subscribe(String destination) throws Exception {
 		connectIfNecessary();
-		StompSession.Subscription subscription = serverSession.subscribe(destination,
-				this);
-		subscriptions.put(destination, subscription);
+		if(!subscriptions.containsKey(destination)){
+			StompSession.Subscription subscription = serverSession.subscribe(destination, this);
+			subscriptions.put(destination, subscription);
+		}
 	}
 
 	public void unsubscribe(String destination) {
@@ -219,10 +205,6 @@ public class ProxyWebSocketConnectionManager extends ConnectionManagerSupport
 			connectIfNecessary();
 			subscription.unsubscribe();
 		}
-	}
-
-	public boolean isConnectedToUserAgent() {
-		return (userAgentSession != null && userAgentSession.isOpen());
 	}
 
 	public void disconnect() {
