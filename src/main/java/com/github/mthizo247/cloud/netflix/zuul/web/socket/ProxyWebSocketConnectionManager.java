@@ -47,14 +47,20 @@ public class ProxyWebSocketConnectionManager extends ConnectionManagerSupport
 	private Map<String, StompSession.Subscription> subscriptions = new ConcurrentHashMap<>();
 	private ErrorHandler errorHandler;
 	private SimpMessagingTemplate messagingTemplate;
+	private String uri;
 
 	public ProxyWebSocketConnectionManager(SimpMessagingTemplate messagingTemplate,
 			WebSocketStompClient stompClient, String uri) {
 		super(uri);
 		this.messagingTemplate = messagingTemplate;
 		this.stompClient = stompClient;
+		this.uri = uri;
 	}
 
+	public String getUrl(){
+		return this.uri;
+	}
+	
 	public void errorHandler(ErrorHandler errorHandler) {
 		this.errorHandler = errorHandler;
 	}

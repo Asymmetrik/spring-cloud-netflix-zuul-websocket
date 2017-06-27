@@ -173,7 +173,7 @@ public class ProxyWebSocketHandler extends WebSocketHandlerDecorator {
 		Assert.notNull(routeHost, "routeHost");
 
 		String uri = ServletUriComponentsBuilder.fromHttpUrl(routeHost).path(path).toUriString();
-		if(!uriConnection.containsKey(uri.toString())){
+		if(!uriConnection.containsKey(uri)){
 			ProxyWebSocketConnectionManager connectionManager = new ProxyWebSocketConnectionManager(messagingTemplate, stompClient, uri);
 			connectionManager.errorHandler(this.errorHandler);
 			uriConnection.put(uri.toString(), connectionManager);
@@ -196,6 +196,7 @@ public class ProxyWebSocketHandler extends WebSocketHandlerDecorator {
 					}
 				}
 				if(hasSession == false){
+					uriConnection.remove(proxyManager.getUrl());
 					proxyManager.disconnect();
 				}
 			}
